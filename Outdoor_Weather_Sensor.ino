@@ -9,6 +9,7 @@
                       TMP006 because it requires floating point
                       calculation.
     11/18/17 - A.T. - Updated to use F5529
+    12/20/17 - A.T. - Increase sleep time (and fix data type). 
 
 
 */
@@ -23,6 +24,12 @@
      - Press PUSH2 at end of measurement cycle to dump contents of
        Info FRAM to Serial.
 
+   Configuration:
+   - If running on a LaunchPad with a built-in LCD (FR4133, FR6989),
+     then define LCD_ENABLED (or leave it undefined to save (some) power)
+   - Update sleepTime variable to set the number of milliseconds to 
+     sleep between sensor readings. 
+
    setup()
      Initialize Information FRAM if necessary
          User may also press PUSH1 during reset to initialize FRAM
@@ -31,8 +38,7 @@
 
    loop()
      Sensor readings stored in circular buffer in Info FRAM
-     Connect to server every 15 minutes to upload data
-         *** Still need to implement
+     Send data to receiver hub
    Data collected:                               Units
    - BMP180 sensor: Temperature                  F * 10
                     Pressure                     mmHG * 100
@@ -46,7 +52,27 @@
                   Current value of millis()
                   # of resets since FRAM initialized
 
-*/
+
+   Historical Note: 
+   This code was orginally designed to make use of the FRAM
+   non-volatile storage available in some of the MSP430 variants, 
+   with a direct connection to a cloud data server. 
+   Later iterations of the design changed the implementation
+   to make this a "lightweight" battery-powered sensor that would 
+   send the data to a local receiver hub for further data 
+   processing. 
+   So some of the code still contains references to FRAM 
+   functionality that is no longer needed. For example, variable
+   names and comments refer to "saving to FRAM" when the code
+   is actually just writing to RAM. Also, a circular buffer is 
+   maintained to store the last several sensor measurements. The
+   original intention was to be able to retain this information
+   even through power loss. However, the current implementation
+   only sends the latest value to the receiver/processing hub, 
+   and the data stored in the circular buffer is not used 
+   except for some potential debugging situations. Also, since
+   it is stored in RAM instead of FRAM, it is not retained 
+   after a power loss. 
 
 /*
     External and modified libraries:
@@ -78,8 +104,8 @@ LCD_LAUNCHPAD myLCD;
 #endif
 
 // CC110L Declarations
-#define ADDRESS_LOCAL   0x02
-#define ADDRESS_REMOTE  0x01
+#define ADDRESS_LOCAL   0x02    // This device
+#define ADDRESS_REMOTE  0x01    // Receiver hub
 
 struct sPacket
 {
@@ -156,7 +182,7 @@ volatile unsigned char bootCount;
 volatile unsigned char volIndex;
 
 unsigned int loopCount = 0;
-const int sleepTime = 30000;
+const unsigned long sleepTime = 55000;
 
 int            TempF;
 unsigned int   P;
