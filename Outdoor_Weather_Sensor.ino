@@ -18,6 +18,8 @@
                         (previously used to store weather data in NVM).
                       - Remove support for built-in LCD, since code is
                         specific to F5529 LaunchPad
+    01/17/18 - A.T. - Use MspTandV library 
+                    - Change lux measurement from int to long. 
 
 */
 /* -----------------------------------------------------------------
@@ -74,6 +76,8 @@
               This operation causes the code to hang in my setup.
           Sensor_OPT3001.h
           Sensor_BME280.h
+      Calibrated Temp and Vcc library "MspTandV"
+         https://gitlab.com/Andy4495/MspTandV
 
 */
 
@@ -92,6 +96,7 @@ const unsigned long sleepTime = 55000;
 #include "Sensor_TMP007.h"
 #include "Sensor_OPT3001.h"
 #include "Sensor_BME280.h"
+#include "MspTandV.h"
 
 #include <SPI.h>
 #include <AIR430BoostFCC.h>
@@ -116,11 +121,6 @@ struct sPacket txPacket;
   const uint8_t OPT3001_addr  = 0x47;
 */
 
-
-int* Cal30;   // MSP chip Temp calibration @ 30C
-int* Cal85;   // MSP chip Temp calibration @ 85C
-float Tc;     // Tc coeffecient calculated from calibration values
-
 Sensor_TMP007 myTMP007;
 float TMP007_internalTemperature, TMP007_externalTemperature;
 Sensor_OPT3001 myOPT3001;
@@ -134,7 +134,7 @@ struct WeatherData {
   int             BME280_H;  // % Relative Humidity
   int             TMP107_Ti; // Tenth degrees F
   int             TMP107_Te; // Tenth degrees F
-  unsigned int    LUX;       // Limited in code to 65535
+  unsigned long   LUX;       // Lux units
   int             MSP_T;     // Tenth degrees F
   unsigned int    Batt_mV;   // milliVolts
   unsigned int    Loops;
@@ -144,13 +144,13 @@ struct WeatherData {
 
 WeatherData weatherdata;
 
-volatile unsigned char bootCount;
+MspTemp msp430Temp;
+MspVcc  msp430Vcc;
 
 unsigned int loopCount = 0;
 
-int            ADCraw;
-float          msp430T;
-float          msp430mV;
+int            msp430T;
+int            msp430mV;
 float          P;
 
 /* Use these definitions if Pin 11 Special Function is implemented
@@ -214,13 +214,6 @@ void setup() {
   weatherdata.Loops = 0;
   weatherdata.Millis = 0;
 
-  // Calculate the internal Temp Coeffecient using factory calibration values
-  // See MSP430F5529 Family Guide Sections 28.2.8 and Fig 28-2, and
-  // MS430FR6989 User Guide Section 6.11
-  Cal30 = (int*) 0x1a1a;
-  Cal85 = (int*) 0x1a1c;
-  Tc = 55.0 / (float)(*Cal85 - *Cal30);
-
   // Flash the LED to indicate we started
   digitalWrite(BOARD_LED, HIGH);
   delay(500);
@@ -258,7 +251,7 @@ void loop() {
   BME280_pressure = myBME280.pressure();
   BME280_temperature = conversion(myBME280.temperature(), KELVIN, FAHRENHEIT);
   BME280_humidity = myBME280.humidity();
-  Serial.print("  Pressure: ");
+  Serial.print("  Pressure:    ");
   Serial.print(BME280_pressure);
   Serial.print(" hPa, ");
   /// *** Need to convert to mmHg
@@ -268,54 +261,39 @@ void loop() {
   Serial.print("  Temperature: ");
   Serial.print(BME280_temperature);
   Serial.println(" F");
-  Serial.print("  Humidity: ");
+  Serial.print("  Humidity:    ");
   Serial.print(BME280_humidity);
   Serial.println(" %");
 
   // MSP430 internal temp sensor
   Serial.println("MSP430");
-  analogReference(INTERNAL1V5);
-  ADCraw = analogRead(TEMPSENSOR);
-  ADCraw = analogRead(TEMPSENSOR);
-  // Adjust temp reading with calibration factor and convert to degrees F
-  msp430T = (Tc * (ADCraw - (*Cal30)) + 30.0L) * 1.8 + 32.0;
-  Serial.print("  Temperature: ");
-  Serial.print(msp430T);
+  msp430Temp.read(CAL_ONLY);   // Only get the calibrated reading
+  msp430T = msp430Temp.getTempCalibratedF();
+  Serial.print("  Temperature:     ");
+  Serial.print(msp430T/10);
+  Serial.print(".");
+  Serial.print(msp430T%10);
   Serial.println(" F");
 
-  // MSP430 battery voltage (Vcc) calibrated against reference
-  // Start with 2.0V reference, which requires Vcc >= 2.3 V
-  // Once Vcc is below 2.8V, then switch to 1.5V reference.
-  // Vcc = (4096 * 1.2 V) / 1.2-V reference ADC result
-  // Internal 1.5V reference is on ADC channel 13
-  analogReference(INTERNAL2V0);
-  analogRead(A11);
-  ADCraw = analogRead(A11);
-  // Need calculation to be Long int due to mV scaling
-  msp430mV = ADCraw * 4.0 / 4095.0;
-  // Use 1.5V reference if Vcc < 2.8V
-  if (msp430mV < 2.8) {
-    analogReference(INTERNAL1V5);
-    ADCraw = analogRead(A11);
-    msp430mV = ADCraw * 3.0 / 4095.0;
-  }
-  Serial.print("  Battery Voltage: ");
-  Serial.print(msp430mV, 3);
-  Serial.println(" V");
+  // MSP430 battery voltage (Vcc) 
+  msp430Vcc.read(CAL_ONLY);    // Only get the calibrated reading
+  msp430mV = msp430Vcc.getVccCalibrated();
 
-  weatherdata.BME280_T = (BME280_temperature + 0.05) * 10.0;
-  weatherdata.BME280_P = (P + 0.005) * 100.0;
-  weatherdata.BME280_H = (BME280_humidity + 0.05) * 10.0;
+  Serial.print("  Battery Voltage: ");
+  Serial.print(msp430mV);
+  Serial.println(" mV");
+  Serial.println("***");
+
+  weatherdata.BME280_T  = (BME280_temperature + 0.05) * 10.0;
+  weatherdata.BME280_P  = (P + 0.005) * 100.0;
+  weatherdata.BME280_H  = (BME280_humidity + 0.05) * 10.0;
   weatherdata.TMP107_Ti = (TMP007_internalTemperature + 0.05) * 10.0;
   weatherdata.TMP107_Te = (TMP007_externalTemperature + 0.05) * 10.0;
-  if (OPT3001_light > 65534.5)
-    weatherdata.LUX = 65535;
-  else
-    weatherdata.LUX = OPT3001_light;
-  weatherdata.MSP_T = (msp430T + 0.05) * 10.0;
-  weatherdata.Batt_mV = (msp430mV + 0.0005) * 1000.0;
-  weatherdata.Loops = loopCount;
-  weatherdata.Millis = millis();
+  weatherdata.LUX       = OPT3001_light;
+  weatherdata.MSP_T     = msp430T;
+  weatherdata.Batt_mV   = msp430mV;
+  weatherdata.Loops     = loopCount;
+  weatherdata.Millis    = millis();
 
   // Send the data over-the-air
   memcpy(&txPacket.message, &weatherdata, sizeof(WeatherData));

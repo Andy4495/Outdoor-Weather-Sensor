@@ -5,7 +5,7 @@ This project is a battery-powered wireless outdoor weather sensor. It is designe
 
 Data from the TMP007, BME280, and OPT3001 sensors are periodically sent to a wireless receiver hub using the CC110L BoosterPack. A [receiver hub implementation] (https://gitlab.com/Andy4495/Sensor-Receiver) is available on GitLab.
 
-The project is designed for low-power operation. [EnergyTrace] (http://www.ti.com/tool/ENERGYTRACE) measurements indicate that it should operate approximately 82 days on a pair of AA batteries.
+The project is designed for low-power operation. [EnergyTrace] (http://www.ti.com/tool/ENERGYTRACE) measurements indicate that it should operate 80+ days on a pair of AA batteries.
 
 ## Program details ##
 The sketch collects the following data from the SENSORS BoosterPack:
@@ -32,9 +32,9 @@ While the internal processing of the data uses floating-point math, all data is 
 - **Temperature** is formatted in tenth degrees Fahrenheit. For example, 733 represents 73.3 degrees Fahrenheit
 - **Humidity** is formatted as tenth percent relative humidity. For example, 643 represents 64.3 % RH
 - **Pressure** is formatted as hundredth inches of Mercury. For example, 3012 represents 30.12 inHg
-- **Lux** is formatted as an integer lux unit, with a max value of 65535.
+- **Lux** is formatted as a long integer lux unit.
 
-The compiled sketch currently takes about 17K of program space. Converting all math operations to integer (including operations in the external libraries) could potentially save about 4K of program space.
+The compiled sketch currently takes about 21K of program space. Converting all math operations to integer (including operations in the external libraries) could potentially save about 4K of program space.
 
 
 ## External Libraries ##
@@ -46,6 +46,10 @@ The compiled sketch currently takes about 17K of program space. Converting all m
         - This operation causes the code to hang in my setup.
 * Sensor_OPT3001.h
 * Sensor_BME280.h
+
+[Calibrated Temp and Vcc Library] (https://gitlab.com/Andy4495/mspTandV)
+
+* Used for the internal MSP430 temperature and battery voltage measurements. 
 
 ## Assembled Weather Sensor ##
 - ![Weather Sensor: CC110L BoosterPack(bottom), MSP-EXPF5529LP LaunchPad (middle), and SENSORS BoosterPack (top), powered by 2xAA batteries.] (jpg/WeatherSensor.jpg)
