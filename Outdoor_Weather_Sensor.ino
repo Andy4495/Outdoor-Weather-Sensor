@@ -1,5 +1,7 @@
 /* -----------------------------------------------------------------
-  /* Outdoor Weather Sensor
+    Outdoor Weather Sensor
+    https://gitlab.com/Andy4495/Outdoor-Weather-Sensor
+
     10/22/17 - A.T. - Original
     11/03/17 - A.T. - Add internal MSP430 temp and voltage sensing
                     - Add SHT21 temp and humidity sensing
@@ -18,9 +20,13 @@
                         (previously used to store weather data in NVM).
                       - Remove support for built-in LCD, since code is
                         specific to F5529 LaunchPad
-    01/17/18 - A.T. - Use MspTandV library 
-                    - Change lux measurement from int to long. 
-    02/01/18 - A.T. - Update message structure to align on word boundary. 
+    01/17/18 - A.T. - Use MspTandV library
+                    - Change lux measurement from int to long.
+    02/01/18 - A.T. - Update message structure to align on word boundary.
+    03/12/18 - A.T. - Changed TX to Channel 4 to allow use of repeater
+                      Default is Chananel 4.
+                      Press and hold PUSH1/S1/P2.1 during reset to
+                      change to Channel 1.
 
 */
 /* -----------------------------------------------------------------
@@ -105,6 +111,7 @@ const unsigned long sleepTime = 55000;
 // CC110L Declarations
 #define ADDRESS_LOCAL   0x02    // This device
 #define ADDRESS_REMOTE  0x01    // Receiver hub
+channel_t txChannel = CHANNEL_4;        // Can be changed with PUSH1
 
 enum {WEATHER_STRUCT, TEMP_STRUCT};
 
@@ -183,7 +190,7 @@ void setup() {
   memset(txPacket.message, 0, sizeof(txPacket.message));
 #ifdef ENABLE_RADIO
   Serial.println(F("Radio Enabled"));
-  Radio.begin(ADDRESS_LOCAL, CHANNEL_1, POWER_MAX);
+  Radio.begin(ADDRESS_LOCAL, txChannel, POWER_MAX);
 #endif
 
   Wire.begin();            // initialize I2C that connects to sensor
@@ -201,11 +208,19 @@ void setup() {
 
   // If enabling a special function for PUSH1 or PUSH2, then configure INPUT_PULLUP
   // Otherwise, leave default setup as INPUT to save a little power.
-  //  pinMode(PUSH1, INPUT_PULLUP);
+  pinMode(PUSH1, INPUT_PULLUP);                // Used to select TX channel
   //  pinMode(PUSH2, INPUT_PULLUP);
 
   digitalWrite(BOARD_LED, LOW);
-  pinMode(BOARD_LED, OUTPUT); 
+  pinMode(BOARD_LED, OUTPUT);
+
+  // If PUSH1 pressed during reset, then use CH1. Otherwise, use default (CH4).
+  if ( digitalRead(PUSH1) == LOW) txChannel = CHANNEL_1;
+
+  if (txChannel == CHANNEL_1) Serial.print("TX Channel: CHANNEL_1 (");
+  else Serial.print("TX Channel: CHANNEL_4 (");
+  Serial.print(txChannel, HEX);
+  Serial.println(")");
 
   // Set all structure values to zero on startup
   weatherdata.BME280_T = 0;
@@ -220,9 +235,15 @@ void setup() {
   weatherdata.Millis = 0;
 
   // Flash the LED to indicate we started
-  digitalWrite(BOARD_LED, HIGH);
-  delay(500);
-  digitalWrite(BOARD_LED, LOW);
+  // Number of flashes indicates TX channel number
+  int flashes = 4;
+  if (txChannel == CHANNEL_1) flashes = 1;
+  for (int i = 0; i < flashes; i++) {
+    digitalWrite(BOARD_LED, HIGH);
+    delay(350);
+    digitalWrite(BOARD_LED, LOW);
+    delay(350);
+  }
 }
 
 
@@ -275,12 +296,12 @@ void loop() {
   msp430Temp.read(CAL_ONLY);   // Only get the calibrated reading
   msp430T = msp430Temp.getTempCalibratedF();
   Serial.print("  Temperature:     ");
-  Serial.print(msp430T/10);
+  Serial.print(msp430T / 10);
   Serial.print(".");
-  Serial.print(msp430T%10);
+  Serial.print(msp430T % 10);
   Serial.println(" F");
 
-  // MSP430 battery voltage (Vcc) 
+  // MSP430 battery voltage (Vcc)
   msp430Vcc.read(CAL_ONLY);    // Only get the calibrated reading
   msp430mV = msp430Vcc.getVccCalibrated();
 
@@ -322,4 +343,3 @@ void loop() {
 
   sleep(sleepTime);
 }
-
