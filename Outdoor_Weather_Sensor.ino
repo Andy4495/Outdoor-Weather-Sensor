@@ -27,22 +27,22 @@
                       Default is Chananel 4.
                       Press and hold PUSH1/S1/P2.1 during reset to
                       change to Channel 1.
+    10/20/18 - A.T. - Use Software I2C (SWI2C) for comms with SENSORS BoosterPack.
+                      Implement custom interface to TMP007, OPT3001, BME280
+                      sensors.
+                      Cut down code size to fit on MSP430G2553.
+                      Go back to integer-only math.
+                      Use sleepSeconds(), so sleep time is now in seconds, not ms
 
 */
 /* -----------------------------------------------------------------
 
-   Design is specific to MSP430F5529, SENSORS BoosterPack, and
+   Design is specific to MSP430G2553, SENSORS BoosterPack, and
    CC110L BoosterPack.
 
    With minor modifications (e.g. ADC voltage references, LED
    name, TLV/calibration memory locations), this could be modified
    to work with other MSP430 variants.
-
-   Special Pin and Button Operations:
-     - Ground Pin 11 for Special Function
-       - No function is currently defined
-     - PUSH1 and PUSH2 not currently used
-
 
    Configuration:
    - Update sleepTime variable to set the number of milliseconds to
@@ -50,6 +50,7 @@
    - Define BOARD_LED to the LED name appropriate for the board:
      - For FR6989 and F5529, use #DEFINE BOARD_LED RED_LED
      - For FR4133, use #DEFINE BOARD_LED LED2
+     - For G2553, Do not define BOARD_LED
 
    setup()
      I/O and sensor setup
@@ -60,7 +61,7 @@
      Send data to receiver hub
    Data collected:                               Units
    - BME280 sensor: Temperature                  F * 10
-                    Humidity                     %RH
+                    Humidity                     0.1%RH
                     Pressure                     mmHg * 100
    - TMP007 sensor: Die temperature              F * 10
                     External temperature         F * 10
@@ -71,18 +72,9 @@
                   # of times loop() has run
                   Current value of millis()
 
-
-  /*
     External libraries:
-      Weather Sensors Library by Rei Vilo
-        https://github.com/rei-vilo/SensorsWeather_Library
-          Sensor_Units.h
-          Sensor_TMP007.h
-            - Slightly modified to comment out the TMP007_RESET command
-              sent in Sensor_TMP007.begin() method.
-              This operation causes the code to hang in my setup.
-          Sensor_OPT3001.h
-          Sensor_BME280.h
+      Software I2C "SWI2C"
+         https://gitlab.com/Andy4495/SWI2C
       Calibrated Temp and Vcc library "MspTandV"
          https://gitlab.com/Andy4495/MspTandV
 
@@ -92,18 +84,14 @@
 // If using without CC110L BoosterPack,
 // then comment out the following line:
 #define ENABLE_RADIO
-#define BOARD_LED RED_LED
-const unsigned long sleepTime = 55000;
+// G2553 LED conflict with CC110L BoosterPack, so don't use
+//#define BOARD_LED RED_LED
+const unsigned long sleepTime = 55;       // Seconds, not ms
 // ************************************************ //
 
-
-
-#include "Wire.h"
-#include "Sensor_Units.h"
-#include "Sensor_TMP007.h"
-#include "Sensor_OPT3001.h"
-#include "Sensor_BME280.h"
+#include "SWI2C.h"
 #include "MspTandV.h"
+#include "sensor_definitions.h"
 
 #include <SPI.h>
 #include <AIR430BoostFCC.h>
@@ -111,33 +99,9 @@ const unsigned long sleepTime = 55000;
 // CC110L Declarations
 #define ADDRESS_LOCAL   0x02    // This device
 #define ADDRESS_REMOTE  0x01    // Receiver hub
-channel_t txChannel = CHANNEL_4;        // Can be changed with PUSH1
+channel_t txChannel = CHANNEL_4;        // Can be changed with PUSH2
 
 enum {WEATHER_STRUCT, TEMP_STRUCT};
-
-struct sPacket
-{
-  uint8_t from;           // Local node address that message originated from
-  uint8_t struct_type;    // Flag to indicate type of message structure
-  uint8_t message[58];    // Local node message
-};
-
-struct sPacket txPacket;
-
-// SENSORS I2C Addressing (7-bit)
-/* Note that the I2C addresses are all hardcoded in the Weather Sensors Library
-  // and are only listed here for reference
-  const uint8_t TMP007_addr   = 0x40;
-  const uint8_t BME280_addr   = 0x77;
-  const uint8_t OPT3001_addr  = 0x47;
-*/
-
-Sensor_TMP007 myTMP007;
-float TMP007_internalTemperature, TMP007_externalTemperature;
-Sensor_OPT3001 myOPT3001;
-float OPT3001_light;
-Sensor_BME280 myBME280;
-float BME280_pressure, BME280_temperature, BME280_humidity;
 
 struct WeatherData {
   int             BME280_T;  // Tenth degrees F
@@ -152,8 +116,57 @@ struct WeatherData {
   unsigned long   Millis;
 };
 
+struct sPacket
+{
+  uint8_t from;           // Local node address that message originated from
+  uint8_t struct_type;    // Flag to indicate type of message structure
+  union {
+    uint8_t message[58];     // Local node message keep even word boundary
+    WeatherData weatherdata;
+  };
+};
 
-WeatherData weatherdata;
+struct sPacket txPacket;
+
+SWI2C myTMP007(SDA_PIN, SCL_PIN, TMP007_ADDRESS);
+SWI2C myOPT3001(SDA_PIN, SCL_PIN, OPT3001_ADDRESS);
+SWI2C myBME280(SDA_PIN, SCL_PIN, BME280_ADDRESS);
+
+int TMP007T_Internal;
+int TMP007T_External;
+
+unsigned long OPT3001Lux;
+
+uint8_t  BME280RawData[8];
+int32_t  rawBME280T, rawBME280P, rawBME280H;
+int32_t  BME280T;
+int32_t  BME280TF;
+uint32_t BME280P;
+int32_t  BME280PinHg;
+uint32_t BME280H;
+int32_t  t_fine;    // Used to carry over the Temp value to H and P calculations
+
+// BME280 Calibration values
+uint16_t dig_T1;
+int16_t  dig_T2;
+int16_t  dig_T3;
+
+uint16_t dig_P1;
+int16_t  dig_P2;
+int16_t  dig_P3;
+int16_t  dig_P4;
+int16_t  dig_P5;
+int16_t  dig_P6;
+int16_t  dig_P7;
+int16_t  dig_P8;
+int16_t  dig_P9;
+
+uint8_t  dig_H1;
+int16_t  dig_H2;
+uint8_t  dig_H3;
+int16_t  dig_H4;
+int16_t  dig_H5;
+int8_t   dig_H6;
 
 MspTemp msp430Temp;
 MspVcc  msp430Vcc;
@@ -162,27 +175,26 @@ unsigned int loopCount = 0;
 
 int            msp430T;
 int            msp430mV;
-float          P;
-
-/* Use these definitions if Pin 11 Special Function is implemented
-  boolean        SpecialFunctionEnable;
-  const int      SpecialFunctionPin = 11;
-*/
 
 void setup() {
-
-  /* Uncomment to enable special function with Pin 11
-    pinMode(SpecialFunction, INPUT_PULLUP);  // Ground Pin 11 to enable Special Function
-    if (digitalRead(SpecialFunctionPin)) {
-      SpecialFunctionEnable = false;
-    }
-    else {
-      SpecialFunctionEnable = true;
-    }
-  */
+  uint16_t data16;
+  uint8_t  data8;
 
   Serial.begin(9600);
-  Serial.println(F("Reset"));
+  ///  Serial.println(F("Reset"));
+
+  pinMode(PUSH2, INPUT_PULLUP);                // Used to select TX channel
+
+#ifdef BOARD_LED
+  digitalWrite(BOARD_LED, LOW);
+  pinMode(BOARD_LED, OUTPUT);
+#endif
+
+  // If PUSH2 pressed during reset, then use CH1. Otherwise, use default (CH4).
+  if ( digitalRead(PUSH2) == LOW) txChannel = CHANNEL_1;
+
+  if (txChannel == CHANNEL_1) Serial.print("TX Channel: CHANNEL_1 (");
+  else Serial.println("TX Channel: CHANNEL_4");
 
   // CC110L Setup
   txPacket.from = ADDRESS_LOCAL;
@@ -193,47 +205,32 @@ void setup() {
   Radio.begin(ADDRESS_LOCAL, txChannel, POWER_MAX);
 #endif
 
-  Wire.begin();            // initialize I2C that connects to sensor
-  Serial.println(F("I2C Initialized"));
+  TMP007_startup();
+  OPT3001_startup();
+  BME280_startup();
 
-  myTMP007.begin();
-  Serial.println(F("TMP007 Initialized"));
-  myTMP007.get();
-  myOPT3001.begin();
-  Serial.println(F("OPT3001 Initialized"));
-  myOPT3001.get();
-  myBME280.begin();
-  Serial.println(F("BME280 Initialized"));
-  myBME280.get();
+  /*
+    // Verify device IDs
+    myTMP007.read2bFromRegisterMSBFirst(TMP007_DEVICE_ID, &data16);
+    Serial.print("TMP007 DevID: 0x");
+    Serial.println(data16, HEX);
 
-  // If enabling a special function for PUSH1 or PUSH2, then configure INPUT_PULLUP
-  // Otherwise, leave default setup as INPUT to save a little power.
-  pinMode(PUSH1, INPUT_PULLUP);                // Used to select TX channel
-  //  pinMode(PUSH2, INPUT_PULLUP);
+    myOPT3001.read2bFromRegisterMSBFirst(OPT3001_MANUFACTURE_ID_REGISTER, &data16);
+    Serial.print("OPT3001 ManuID: 0x");
+    Serial.println(data16, HEX);
 
-  digitalWrite(BOARD_LED, LOW);
-  pinMode(BOARD_LED, OUTPUT);
+    myOPT3001.read2bFromRegisterMSBFirst(OPT3001_DEVICE_ID_REGISTER, &data16);
+    Serial.print("OPT3001 DevID: 0x");
+    Serial.println(data16, HEX);
 
-  // If PUSH1 pressed during reset, then use CH1. Otherwise, use default (CH4).
-  if ( digitalRead(PUSH1) == LOW) txChannel = CHANNEL_1;
+    Serial.print("BME280 Chip ID: 0x");
+    myBME280.read1bFromRegister(BME280_ID, &data8);
+    Serial.println(data8, HEX);
 
-  if (txChannel == CHANNEL_1) Serial.print("TX Channel: CHANNEL_1 (");
-  else Serial.print("TX Channel: CHANNEL_4 (");
-  Serial.print(txChannel, HEX);
-  Serial.println(")");
+    Serial.println("--");
+  */
 
-  // Set all structure values to zero on startup
-  weatherdata.BME280_T = 0;
-  weatherdata.BME280_P = 0;
-  weatherdata.BME280_H = 0;
-  weatherdata.TMP107_Ti = 0;
-  weatherdata.TMP107_Te = 0;
-  weatherdata.LUX = 0;
-  weatherdata.MSP_T = 0;
-  weatherdata.Batt_mV = 0;
-  weatherdata.Loops = 0;
-  weatherdata.Millis = 0;
-
+#ifdef BOARD_LED
   // Flash the LED to indicate we started
   // Number of flashes indicates TX channel number
   int flashes = 4;
@@ -244,6 +241,7 @@ void setup() {
     digitalWrite(BOARD_LED, LOW);
     delay(350);
   }
+#endif
 }
 
 
@@ -251,51 +249,52 @@ void loop() {
 
   loopCount++;
 
-  // TMP007 sensor
-  Serial.println("TMP007");
-  myTMP007.get();
-  TMP007_internalTemperature = conversion(myTMP007.internalTemperature(), KELVIN, FAHRENHEIT);
-  TMP007_externalTemperature = conversion(myTMP007.externalTemperature(), KELVIN, FAHRENHEIT);
-  Serial.print("  Internal: ");
-  Serial.print(TMP007_internalTemperature);
-  Serial.println(" F");
-  Serial.print("  External: ");
-  Serial.print(TMP007_externalTemperature);
-  Serial.println(" F");
+  TMP007_get();
 
-  // OPT3001 sensor
-  Serial.println("OPT3001");
-  myOPT3001.get();
-  OPT3001_light = myOPT3001.light();
-  Serial.print("  Ambient Light: ");
-  Serial.print(OPT3001_light);
-  Serial.println(" lux");
+  Serial.print("TMP007 Int (0.1 C): ");
+  Serial.println(TMP007T_Internal);
+  Serial.print("TMP007 Int (0.1 F): ");
+  TMP007T_Internal = (TMP007T_Internal * 9) / 5 + 320;
+  Serial.println(TMP007T_Internal);
 
-  // BME280 sensor
-  Serial.println("BME280");
-  myBME280.get();
-  BME280_pressure = myBME280.pressure();
-  BME280_temperature = conversion(myBME280.temperature(), KELVIN, FAHRENHEIT);
-  BME280_humidity = myBME280.humidity();
-  Serial.print("  Pressure:    ");
-  Serial.print(BME280_pressure);
-  Serial.print(" hPa, ");
-  /// *** Need to convert to mmHg
-  P = BME280_pressure / 33.863886667;    // inches Hg = Pa / 33.863886667
-  Serial.print(P);
-  Serial.println(" inHg");
-  Serial.print("  Temperature: ");
-  Serial.print(BME280_temperature);
-  Serial.println(" F");
-  Serial.print("  Humidity:    ");
-  Serial.print(BME280_humidity);
-  Serial.println(" %");
+  Serial.print("TMP007 Ext (0.1 C): ");
+  Serial.println(TMP007T_External);
+  Serial.print("TMP007 Ext (0.1 F): ");
+  TMP007T_External = (TMP007T_External * 9) / 5 + 320;
+  Serial.println(TMP007T_External);
+
+  OPT3001_get();
+
+  Serial.print("OTP3001 Lux: ");
+  Serial.println(OPT3001Lux);
+
+
+  BME280_get();
+  BME280T = calculate_BME280_T();
+  BME280P = calculate_BME280_P();
+  BME280H = calculate_BME280_H();
+  Serial.print("BME280 T (0.01 C): ");
+  Serial.println(BME280T);
+  Serial.print("BME280 T (F): ");
+  BME280TF = (BME280T * 9) / 50 + 320;
+  Serial.print(BME280TF / 10);
+  Serial.print(".");
+  Serial.println(BME280TF % 10);
+  Serial.print("BME280 P (Pa): ");
+  Serial.println(BME280P);
+  Serial.print("BME280 P (inHG): ");
+  BME280PinHg = BME280P * 100 / 3386;
+  Serial.print(BME280PinHg / 100);
+  Serial.print(".");
+  Serial.println(BME280PinHg % 100);
+  Serial.print("BME280 H (0.1%RH): ");
+  Serial.println(BME280H);
 
   // MSP430 internal temp sensor
   Serial.println("MSP430");
   msp430Temp.read(CAL_ONLY);   // Only get the calibrated reading
   msp430T = msp430Temp.getTempCalibratedF();
-  Serial.print("  Temperature:     ");
+  Serial.print("  Temp: ");
   Serial.print(msp430T / 10);
   Serial.print(".");
   Serial.print(msp430T % 10);
@@ -305,41 +304,39 @@ void loop() {
   msp430Vcc.read(CAL_ONLY);    // Only get the calibrated reading
   msp430mV = msp430Vcc.getVccCalibrated();
 
-  Serial.print("  Battery Voltage: ");
+  Serial.print("  Batt: ");
   Serial.print(msp430mV);
   Serial.println(" mV");
-  Serial.println("***");
 
-  weatherdata.BME280_T  = (BME280_temperature + 0.05) * 10.0;
-  weatherdata.BME280_P  = (P + 0.005) * 100.0;
-  weatherdata.BME280_H  = (BME280_humidity + 0.05) * 10.0;
-  weatherdata.TMP107_Ti = (TMP007_internalTemperature + 0.05) * 10.0;
-  weatherdata.TMP107_Te = (TMP007_externalTemperature + 0.05) * 10.0;
-  weatherdata.LUX       = OPT3001_light;
-  weatherdata.MSP_T     = msp430T;
-  weatherdata.Batt_mV   = msp430mV;
-  weatherdata.Loops     = loopCount;
-  weatherdata.Millis    = millis();
+  txPacket.weatherdata.BME280_T  = BME280TF;
+  txPacket.weatherdata.BME280_P  = BME280PinHg;
+  txPacket.weatherdata.BME280_H  = BME280H;
+  txPacket.weatherdata.TMP107_Ti = TMP007T_Internal;
+  txPacket.weatherdata.TMP107_Te = TMP007T_External;
+  txPacket.weatherdata.LUX       = OPT3001Lux;
+  txPacket.weatherdata.MSP_T     = msp430T;
+  txPacket.weatherdata.Batt_mV   = msp430mV;
+  txPacket.weatherdata.Loops     = loopCount;
+  txPacket.weatherdata.Millis    = millis();
 
-  // Send the data over-the-air
-  memcpy(&txPacket.message, &weatherdata, sizeof(WeatherData));
 #ifdef ENABLE_RADIO
   Radio.transmit(ADDRESS_REMOTE, (unsigned char*)&txPacket, sizeof(WeatherData) + 4);
   Serial.print("Tx 'From' address: ");
   Serial.println(txPacket.from);
 #endif
 
-  Serial.println(weatherdata.BME280_T);
-  Serial.println(weatherdata.BME280_P);
-  Serial.println(weatherdata.BME280_H);
-  Serial.println(weatherdata.TMP107_Ti);
-  Serial.println(weatherdata.TMP107_Te);
-  Serial.println(weatherdata.LUX);
-  Serial.println(weatherdata.MSP_T);
-  Serial.println(weatherdata.Batt_mV);
-  Serial.println(weatherdata.Loops);
-  Serial.println(weatherdata.Millis);
+  Serial.println("Pkt Data:");
+  Serial.println(txPacket.weatherdata.BME280_T);
+  Serial.println(txPacket.weatherdata.BME280_P);
+  Serial.println(txPacket.weatherdata.BME280_H);
+  Serial.println(txPacket.weatherdata.TMP107_Ti);
+  Serial.println(txPacket.weatherdata.TMP107_Te);
+  Serial.println(txPacket.weatherdata.LUX);
+  Serial.println(txPacket.weatherdata.MSP_T);
+  Serial.println(txPacket.weatherdata.Batt_mV);
+  Serial.println(txPacket.weatherdata.Loops);
+  Serial.println(txPacket.weatherdata.Millis);
   Serial.println(F("--"));
 
-  sleep(sleepTime);
+  sleepSeconds(sleepTime);
 }
