@@ -180,16 +180,16 @@ void TMP007_get() {
   uint16_t data16;
 
   myTMP007.read2bFromRegisterMSBFirst(TMP007_INTERNAL_TEMPERATURE, &data16);
-  // Temp is returned in 14 msb, so shift over to lsb and mask off unused bits
-  TMP007T_Internal = (data16 >> 2) & 0x3FFF;
+  // Temp is returned in 14 msb, so shift over to lsb 
+  TMP007T_Internal = (int)data16 >> 2;
 
   // Temperature is returned in 1/32 degree Celsius in the most significant 14 bits
   // Next, multiply by 10 and divide by 32 (right shift 5) to get units in 1/10 degree Celsius (using integer math)
   TMP007T_Internal = (TMP007T_Internal * 10) >> 5;
 
   myTMP007.read2bFromRegisterMSBFirst(TMP007_EXTERNAL_TEMPERATURE, &data16);
-  // Temp is returned in 14 msb, so shift over to lsb and mask off unused bits
-  TMP007T_External = (data16 >> 2) & 0x3FFF;
+  // Temp is returned in 14 msb, so shift over to lsb
+  TMP007T_External = (int)data16 >> 2;
 
   // Temperature is returned in units of 1/32 degree Celsius
   // Next, multiply by 10 and divide by 32 (right shift 5) to get units in 1/10 degree Celsius (using integer math)

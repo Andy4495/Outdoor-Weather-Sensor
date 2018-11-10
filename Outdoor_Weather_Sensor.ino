@@ -33,6 +33,8 @@
                       Cut down code size to fit on MSP430G2553.
                       Go back to integer-only math.
                       Use sleepSeconds(), so sleep time is now in seconds, not ms
+    11/10/18 - A.T. - Fix TMP007 temp calculations in "sensor_functions.h" (signed
+                      value, so don't clear the sign bit)
 
 */
 /* -----------------------------------------------------------------
