@@ -1,6 +1,6 @@
 /* -----------------------------------------------------------------
     Outdoor Weather Sensor
-    https://gitlab.com/Andy4495/Outdoor-Weather-Sensor
+    https://github.com/Andy4495/Outdoor-Weather-Sensor
 
     10/22/17 - A.T. - Original
     11/03/17 - A.T. - Add internal MSP430 temp and voltage sensing
@@ -76,9 +76,9 @@
 
     External libraries:
       Software I2C "SWI2C"
-         https://gitlab.com/Andy4495/SWI2C
+         https://github.com/Andy4495/SWI2C
       Calibrated Temp and Vcc library "MspTandV"
-         https://gitlab.com/Andy4495/MspTandV
+         https://github.com/Andy4495/MspTandV
 
 */
 
