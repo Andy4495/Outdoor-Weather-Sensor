@@ -5,7 +5,7 @@ This project is a battery-powered wireless outdoor weather sensor. It is designe
 
 Data from the TMP007, BME280, and OPT3001 sensors are periodically sent to a wireless receiver hub using the CC110L BoosterPack. A [receiver hub implementation](https://github.com/Andy4495/Wireless-Sensor-Receiver-Hub) is available on GitHub.
 
-The project is designed for low-power operation. [EnergyTrace](http://www.ti.com/tool/ENERGYTRACE) measurements indicate that it should operate well over a year on a pair of AA batteries.
+The project is designed for low-power operation. My current implementation is still running on a pair of AA batteries for over a year. The limiting factor in the life of the batteries is the TMP007 sensor, which is only specified to operate down to 2.5 V. The MSP430 (running at 8 MHz) will work down to 2.2 V, the BME280 sensor down to 1.8 V, and the OPT3001 sensor down to 1.6 V. 
 
 Although not packaged into a library (yet), this project includes integer-only, software I2C interface code for the TMP007, OPT3001, and BME280 sensors. The code is broken into functions that can be used in other projects that need to interface with these sensors.
 
