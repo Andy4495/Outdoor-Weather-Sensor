@@ -35,6 +35,7 @@
                       Use sleepSeconds(), so sleep time is now in seconds, not ms
     11/10/18 - A.T. - Fix TMP007 temp calculations in "sensor_functions.h" (signed
                       value, so don't clear the sign bit)
+    05/19/20 - A.T. - Sensor interfacing moved to new Weather_Sensors_SWI2C library.
 
 */
 /* -----------------------------------------------------------------
@@ -62,19 +63,21 @@
      Read and process individual sensor data
      Send data to receiver hub
    Data collected:                               Units
-   - BME280 sensor: Temperature                  F * 10
-                    Humidity                     0.1%RH
-                    Pressure                     mmHg * 100
-   - TMP007 sensor: Die temperature              F * 10
-                    External temperature         F * 10
+   - BME280 sensor: Temperature                  0.1 degrees F
+                    Humidity                     0.1 %RH
+                    Pressure                     0.01 mmHg
+   - TMP007 sensor: Die temperature              0.1 degrees F
+                    External temperature         0.1 degrees F
    - OPT3001 sensor: Ambient light               lux
-   - MSP430: Internal Temperature                F * 10
+   - MSP430: Internal Temperature                0.1 degrees F
    - MSP430: Supply voltage (Vcc)                mV
    - Internal Timing:
                   # of times loop() has run
                   Current value of millis()
 
     External libraries:
+      Weather_Sensors_SWI2C
+         https://github.com/Andy4495/Weather_Sensors_SWI2C
       Software I2C "SWI2C"
          https://github.com/Andy4495/SWI2C
       Calibrated Temp and Vcc library "MspTandV"
@@ -91,9 +94,8 @@
 const unsigned long sleepTime = 55;       // Seconds, not ms
 // ************************************************ //
 
-#include "SWI2C.h"
+#include "Weather_Sensors_SWI2C.h"
 #include "MspTandV.h"
-#include "sensor_definitions.h"
 
 #include <SPI.h>
 #include <AIR430BoostFCC.h>
@@ -109,8 +111,8 @@ struct WeatherData {
   int             BME280_T;  // Tenth degrees F
   unsigned int    BME280_P;  // Pressure in inches of Hg * 100
   int             BME280_H;  // % Relative Humidity
-  int             TMP107_Ti; // Tenth degrees F
-  int             TMP107_Te; // Tenth degrees F
+  int             TMP007_Ti; // Tenth degrees F
+  int             TMP007_Te; // Tenth degrees F
   unsigned long   LUX;       // Lux units
   int             MSP_T;     // Tenth degrees F
   unsigned int    Batt_mV;   // milliVolts
@@ -130,60 +132,24 @@ struct sPacket
 
 struct sPacket txPacket;
 
-SWI2C myTMP007(SDA_PIN, SCL_PIN, TMP007_ADDRESS);
-SWI2C myOPT3001(SDA_PIN, SCL_PIN, OPT3001_ADDRESS);
-SWI2C myBME280(SDA_PIN, SCL_PIN, BME280_ADDRESS);
+#define SDA_PIN                         10
+#define SCL_PIN                         9
+#define TMP007_ADDRESS                  0x40
+#define OPT3001_ADDRESS                 0x47
+#define BME280_ADDRESS                  0x77
 
-int TMP007T_Internal;
-int TMP007T_External;
-
-unsigned long OPT3001Lux;
-
-uint8_t  BME280RawData[8];
-int32_t  rawBME280T, rawBME280P, rawBME280H;
-int32_t  BME280T;
-int32_t  BME280TF;
-uint32_t BME280P;
-int32_t  BME280PinHg;
-uint32_t BME280H;
-int32_t  t_fine;    // Used to carry over the Temp value to H and P calculations
-
-// BME280 Calibration values
-uint16_t dig_T1;
-int16_t  dig_T2;
-int16_t  dig_T3;
-
-uint16_t dig_P1;
-int16_t  dig_P2;
-int16_t  dig_P3;
-int16_t  dig_P4;
-int16_t  dig_P5;
-int16_t  dig_P6;
-int16_t  dig_P7;
-int16_t  dig_P8;
-int16_t  dig_P9;
-
-uint8_t  dig_H1;
-int16_t  dig_H2;
-uint8_t  dig_H3;
-int16_t  dig_H4;
-int16_t  dig_H5;
-int8_t   dig_H6;
+TMP007_SWI2C  myTMP007(SDA_PIN, SCL_PIN, TMP007_ADDRESS);
+OPT3001_SWI2C myOPT3001(SDA_PIN, SCL_PIN, OPT3001_ADDRESS);
+BME280_SWI2C  myBME280(SDA_PIN, SCL_PIN, BME280_ADDRESS);
 
 MspTemp msp430Temp;
 MspVcc  msp430Vcc;
 
 unsigned int loopCount = 0;
 
-int            msp430T;
-int            msp430mV;
-
 void setup() {
-  uint16_t data16;
-  uint8_t  data8;
 
   Serial.begin(9600);
-  ///  Serial.println(F("Reset"));
 
   pinMode(PUSH2, INPUT_PULLUP);                // Used to select TX channel
 
@@ -207,30 +173,9 @@ void setup() {
   Radio.begin(ADDRESS_LOCAL, txChannel, POWER_MAX);
 #endif
 
-  TMP007_startup();
-  OPT3001_startup();
-  BME280_startup();
-
-  /*
-    // Verify device IDs
-    myTMP007.read2bFromRegisterMSBFirst(TMP007_DEVICE_ID, &data16);
-    Serial.print("TMP007 DevID: 0x");
-    Serial.println(data16, HEX);
-
-    myOPT3001.read2bFromRegisterMSBFirst(OPT3001_MANUFACTURE_ID_REGISTER, &data16);
-    Serial.print("OPT3001 ManuID: 0x");
-    Serial.println(data16, HEX);
-
-    myOPT3001.read2bFromRegisterMSBFirst(OPT3001_DEVICE_ID_REGISTER, &data16);
-    Serial.print("OPT3001 DevID: 0x");
-    Serial.println(data16, HEX);
-
-    Serial.print("BME280 Chip ID: 0x");
-    myBME280.read1bFromRegister(BME280_ID, &data8);
-    Serial.println(data8, HEX);
-
-    Serial.println("--");
-  */
+  myTMP007.begin();
+  myOPT3001.begin();
+  myBME280.begin();
 
 #ifdef BOARD_LED
   // Flash the LED to indicate we started
@@ -251,73 +196,55 @@ void loop() {
 
   loopCount++;
 
-  TMP007_get();
+  myTMP007.readSensor();
 
   Serial.print("TMP007 Int (0.1 C): ");
-  Serial.println(TMP007T_Internal);
+  Serial.println(myTMP007.getIntTempC());
   Serial.print("TMP007 Int (0.1 F): ");
-  TMP007T_Internal = (TMP007T_Internal * 9) / 5 + 320;
-  Serial.println(TMP007T_Internal);
+  Serial.println(myTMP007.getIntTempF());
 
   Serial.print("TMP007 Ext (0.1 C): ");
-  Serial.println(TMP007T_External);
+  Serial.println(myTMP007.getExtTempC());
   Serial.print("TMP007 Ext (0.1 F): ");
-  TMP007T_External = (TMP007T_External * 9) / 5 + 320;
-  Serial.println(TMP007T_External);
+  Serial.println(myTMP007.getExtTempF());
 
-  OPT3001_get();
+  myOPT3001.readSensor();
 
   Serial.print("OTP3001 Lux: ");
-  Serial.println(OPT3001Lux);
+  Serial.println(myOPT3001.getLux());
 
+  myBME280.readSensor();
 
-  BME280_get();
-  BME280T = calculate_BME280_T();
-  BME280P = calculate_BME280_P();
-  BME280H = calculate_BME280_H();
   Serial.print("BME280 T (0.01 C): ");
-  Serial.println(BME280T);
-  Serial.print("BME280 T (F): ");
-  BME280TF = (BME280T * 9) / 50 + 320;
-  Serial.print(BME280TF / 10);
-  Serial.print(".");
-  Serial.println(BME280TF % 10);
+  Serial.println(myBME280.getTempC());
+  Serial.print("BME280 T (0.1 F): ");
+  Serial.println(myBME280.getTempF());
   Serial.print("BME280 P (Pa): ");
-  Serial.println(BME280P);
-  Serial.print("BME280 P (inHG): ");
-  BME280PinHg = BME280P * 100 / 3386;
-  Serial.print(BME280PinHg / 100);
-  Serial.print(".");
-  Serial.println(BME280PinHg % 100);
+  Serial.println(myBME280.getPressurePa());
+  Serial.print("BME280 P (0.01 inHG): ");
+  Serial.println(myBME280.getPressureInHg());
   Serial.print("BME280 H (0.1%RH): ");
-  Serial.println(BME280H);
+  Serial.println(myBME280.getRH());
 
   // MSP430 internal temp sensor
   Serial.println("MSP430");
   msp430Temp.read(CAL_ONLY);   // Only get the calibrated reading
-  msp430T = msp430Temp.getTempCalibratedF();
-  Serial.print("  Temp: ");
-  Serial.print(msp430T / 10);
-  Serial.print(".");
-  Serial.print(msp430T % 10);
-  Serial.println(" F");
+  Serial.print("  Temp (0.1 F): ");
+  Serial.println(msp430Temp.getTempCalibratedF());
 
   // MSP430 battery voltage (Vcc)
   msp430Vcc.read(CAL_ONLY);    // Only get the calibrated reading
-  msp430mV = msp430Vcc.getVccCalibrated();
+  Serial.print("  Batt (mV): ");
+  Serial.println(msp430Vcc.getVccCalibrated());
 
-  Serial.print("  Batt: ");
-  Serial.print(msp430mV);
-  Serial.println(" mV");
-
-  txPacket.weatherdata.BME280_T  = BME280TF;
-  txPacket.weatherdata.BME280_P  = BME280PinHg;
-  txPacket.weatherdata.BME280_H  = BME280H;
-  txPacket.weatherdata.TMP107_Ti = TMP007T_Internal;
-  txPacket.weatherdata.TMP107_Te = TMP007T_External;
-  txPacket.weatherdata.LUX       = OPT3001Lux;
-  txPacket.weatherdata.MSP_T     = msp430T;
-  txPacket.weatherdata.Batt_mV   = msp430mV;
+  txPacket.weatherdata.BME280_T  = myBME280.getTempF();
+  txPacket.weatherdata.BME280_P  = myBME280.getPressureInHg();
+  txPacket.weatherdata.BME280_H  = myBME280.getRH();
+  txPacket.weatherdata.TMP007_Ti = myTMP007.getIntTempF();
+  txPacket.weatherdata.TMP007_Te = myTMP007.getExtTempF();
+  txPacket.weatherdata.LUX       = myOPT3001.getLux();
+  txPacket.weatherdata.MSP_T     = msp430Temp.getTempCalibratedF();
+  txPacket.weatherdata.Batt_mV   = msp430Vcc.getVccCalibrated();
   txPacket.weatherdata.Loops     = loopCount;
   txPacket.weatherdata.Millis    = millis();
 
@@ -331,8 +258,8 @@ void loop() {
   Serial.println(txPacket.weatherdata.BME280_T);
   Serial.println(txPacket.weatherdata.BME280_P);
   Serial.println(txPacket.weatherdata.BME280_H);
-  Serial.println(txPacket.weatherdata.TMP107_Ti);
-  Serial.println(txPacket.weatherdata.TMP107_Te);
+  Serial.println(txPacket.weatherdata.TMP007_Ti);
+  Serial.println(txPacket.weatherdata.TMP007_Te);
   Serial.println(txPacket.weatherdata.LUX);
   Serial.println(txPacket.weatherdata.MSP_T);
   Serial.println(txPacket.weatherdata.Batt_mV);
