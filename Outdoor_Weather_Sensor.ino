@@ -36,6 +36,8 @@
     11/10/18 - A.T. - Fix TMP007 temp calculations in "sensor_functions.h" (signed
                       value, so don't clear the sign bit)
     05/19/20 - A.T. - Sensor interfacing moved to new Weather_Sensors_SWI2C library.
+    08/16/20 - A.T. - Re-arrange calls to library to optimize code size.
+                      Comment out code that prints out packet data; uncomment if needed for debugging. 
 
 */
 /* -----------------------------------------------------------------
@@ -197,45 +199,10 @@ void loop() {
   loopCount++;
 
   myTMP007.readSensor();
-
-  Serial.print("TMP007 Int (0.1 C): ");
-  Serial.println(myTMP007.getIntTempC());
-  Serial.print("TMP007 Int (0.1 F): ");
-  Serial.println(myTMP007.getIntTempF());
-
-  Serial.print("TMP007 Ext (0.1 C): ");
-  Serial.println(myTMP007.getExtTempC());
-  Serial.print("TMP007 Ext (0.1 F): ");
-  Serial.println(myTMP007.getExtTempF());
-
   myOPT3001.readSensor();
-
-  Serial.print("OTP3001 Lux: ");
-  Serial.println(myOPT3001.getLux());
-
   myBME280.readSensor();
-
-  Serial.print("BME280 T (0.01 C): ");
-  Serial.println(myBME280.getTempC());
-  Serial.print("BME280 T (0.1 F): ");
-  Serial.println(myBME280.getTempF());
-  Serial.print("BME280 P (Pa): ");
-  Serial.println(myBME280.getPressurePa());
-  Serial.print("BME280 P (0.01 inHG): ");
-  Serial.println(myBME280.getPressureInHg());
-  Serial.print("BME280 H (0.1%RH): ");
-  Serial.println(myBME280.getRH());
-
-  // MSP430 internal temp sensor
-  Serial.println("MSP430");
   msp430Temp.read(CAL_ONLY);   // Only get the calibrated reading
-  Serial.print("  Temp (0.1 F): ");
-  Serial.println(msp430Temp.getTempCalibratedF());
-
-  // MSP430 battery voltage (Vcc)
   msp430Vcc.read(CAL_ONLY);    // Only get the calibrated reading
-  Serial.print("  Batt (mV): ");
-  Serial.println(msp430Vcc.getVccCalibrated());
 
   txPacket.weatherdata.BME280_T  = myBME280.getTempF();
   txPacket.weatherdata.BME280_P  = myBME280.getPressureInHg();
@@ -248,12 +215,46 @@ void loop() {
   txPacket.weatherdata.Loops     = loopCount;
   txPacket.weatherdata.Millis    = millis();
 
+  Serial.print("TMP007 Int (0.1 C): ");
+  Serial.println(myTMP007.getIntTempC());
+  Serial.print("TMP007 Int (0.1 F): ");
+  Serial.println(txPacket.weatherdata.TMP007_Ti);
+
+  Serial.print("TMP007 Ext (0.1 C): ");
+  Serial.println(myTMP007.getExtTempC());
+  Serial.print("TMP007 Ext (0.1 F): ");
+  Serial.println(txPacket.weatherdata.TMP007_Te);
+
+  Serial.print("OTP3001 Lux: ");
+  Serial.println(txPacket.weatherdata.LUX);
+
+  Serial.print("BME280 T (0.01 C): ");
+  Serial.println(myBME280.getTempC());
+  Serial.print("BME280 T (0.1 F): ");
+  Serial.println(txPacket.weatherdata.BME280_T);
+  Serial.print("BME280 P (Pa): ");
+  Serial.println(myBME280.getPressurePa());
+  Serial.print("BME280 P (0.01 inHG): ");
+  Serial.println(txPacket.weatherdata.BME280_P);
+  Serial.print("BME280 H (0.1%RH): ");
+  Serial.println(txPacket.weatherdata.BME280_H);
+
+  // MSP430 internal temp sensor
+  Serial.println("MSP430");
+  Serial.print("  Temp (0.1 F): ");
+  Serial.println(txPacket.weatherdata.MSP_T);
+
+  // MSP430 battery voltage (Vcc)
+  Serial.print("  Batt (mV): ");
+  Serial.println(txPacket.weatherdata.Batt_mV);
+
 #ifdef ENABLE_RADIO
   Radio.transmit(ADDRESS_REMOTE, (unsigned char*)&txPacket, sizeof(WeatherData) + 4);
   Serial.print("Tx 'From' address: ");
   Serial.println(txPacket.from);
 #endif
 
+/* Uncomment for more debugging data. Note that this info is already printed above. 
   Serial.println("Pkt Data:");
   Serial.println(txPacket.weatherdata.BME280_T);
   Serial.println(txPacket.weatherdata.BME280_P);
@@ -266,6 +267,7 @@ void loop() {
   Serial.println(txPacket.weatherdata.Loops);
   Serial.println(txPacket.weatherdata.Millis);
   Serial.println(F("--"));
+*/
 
   sleepSeconds(sleepTime);
 }
