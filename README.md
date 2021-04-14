@@ -60,6 +60,9 @@ Note that for low-voltage MSP430G2553 operation, it is necessary to program the 
 - ![Weather Sensor: CC110L BoosterPack(bottom), MSP-EXPF5529LP LaunchPad (middle), and SENSORS BoosterPack (top), powered by 2xAA batteries.](jpg/WeatherSensor.jpg)
 Although pictured here with an F5529 LauchPad, the current implementation uses an MSP-EXP430G2 LaunchPad.
 
+## License ##
+The software and other files in this repository are released under what is commonly called the [MIT License][100]. See the file [`LICENSE.txt`][101] in this repository.
+
 [1]: https://github.com/Andy4495/Weather_Sensors_SWI2C
 [2]: https://github.com/Andy4495/Wireless-Sensor-Receiver-Hub
 [3]: https://github.com/Andy4495/SWI2C
@@ -71,3 +74,5 @@ Although pictured here with an F5529 LauchPad, the current implementation uses a
 [9]: https://www.ti.com/tool/MSP-EXP430G2ET
 [10]: https://www.ti.com/tool/BOOSTXL-SENSORS
 [11]: http://www.ti.com/lit/ml/swru312b/swru312b.pdf
+[100]: https://choosealicense.com/licenses/mit/
+[101]: ./LICENSE.txt
