@@ -1,13 +1,12 @@
-Battery Powered Outdoor Weather Sensor
-======================================
+# Battery Powered Outdoor Weather Sensor
 
 This project is a battery-powered wireless outdoor weather sensor. It is designed to run on an [MSP-EXP430G2 LaunchPad][9], [430BOOST-CC110L BoosterPack][11], and [BOOSTXL-SENSORS BoosterPack][10].
 
 Data from the TMP007, BME280, and OPT3001 sensors are periodically sent to a wireless [receiver hub][2] using the CC110L BoosterPack.
 
-The project is designed for low-power operation. My current implementation is still running on a pair of AA batteries for over 18 months. The limiting factor in the life of the batteries is the TMP007 sensor, which is specified to operate down to 2.5 V. The MSP430 (running at 8 MHz) will work down to 2.2 V, the BME280 sensor down to 1.8 V, and the OPT3001 sensor down to 1.6 V.
+The project is designed for low-power operation. The current implementation has run on a pair of AA batteries for over 18 months. The limiting factor in the life of the batteries is the TMP007 sensor, which is specified to operate down to 2.5 V. The MSP430 (running at 8 MHz) will work down to 2.2 V, the BME280 sensor down to 1.8 V, and the OPT3001 sensor down to 1.6 V.
 
-## Updated Design ##
+## Updated Design
 
 Previous versions of the weather sensor were implemented for an MSP-EXP430F5529LP LaunchPad and used Rei Vilo's [Weather Sensors Library][8]. However, that design required new batteries every two months, so I looked for ways to cut power usage and improve the design.
 
@@ -15,18 +14,19 @@ The new design uses an MSP430G2553 processor running at 8 MHz.
 
 By moving to a G2553 controller, I had to switch to a software I2C implementation, since the G2 processors share hardware I2C with the hardware SPI signals. So I created my own [Software I2C Weather Sensors library][1].
 
-## Program details ##
+## Program details
+
 The sketch collects the following data from the SENSORS BoosterPack:
 
 - TMP007 Sensor:
-     - Die temperature
-     - External Temperature
+  - Die temperature
+  - External Temperature
 - BME280 Sensor:
-     - Temperature
-     - Humidity
-     - Pressure
+  - Temperature
+  - Humidity
+  - Pressure
 - OPT3001 Sensor:
-     - Lignt Intensity
+  - Lignt Intensity
 
 It also collects the following data from the MSP430:
 
@@ -46,21 +46,25 @@ The compiled sketch currently takes about 15K of program space, and therefore fi
 
 Note that for low-voltage MSP430G2553 operation, it is necessary to program the processor to run at 8 MHz instead of the standard 16 MHz.
 
-## External Libraries ##
-* [Weather Sensors][1] - Weather Sensors interface using software I2C.
-* [SWI2C][3] - Software I2C implementation, used by the Wether Sensors library.
-* [Calibrated Temp and Vcc Library][4] - Internal MSP430 temperature and battery voltage measurements.
+## External Libraries
 
-## References ##
-* [TMP007][5] Temperature Sensor.
-* [OPT3001][6] Amient Light Sensor.
-* [BME280][7] Temperature, Humidity, and Pressure Sensor.
+- [Weather Sensors][1] - Weather Sensors interface using software I2C.
+- [SWI2C][3] - Software I2C implementation, used by the Wether Sensors library.
+- [Calibrated Temp and Vcc Library][4] - Internal MSP430 temperature and battery voltage measurements.
 
-## Assembled Weather Sensor ##
+## References
+
+- [TMP007][5] Temperature Sensor.
+- [OPT3001][6] Amient Light Sensor.
+- [BME280][7] Temperature, Humidity, and Pressure Sensor.
+
+## Assembled Weather Sensor
+
 - ![Weather Sensor: CC110L BoosterPack(bottom), MSP-EXPF5529LP LaunchPad (middle), and SENSORS BoosterPack (top), powered by 2xAA batteries.](jpg/WeatherSensor.jpg)
 Although pictured here with an F5529 LauchPad, the current implementation uses an MSP-EXP430G2 LaunchPad.
 
-## License ##
+## License
+
 The software and other files in this repository are released under what is commonly called the [MIT License][100]. See the file [`LICENSE.txt`][101] in this repository.
 
 [1]: https://github.com/Andy4495/Weather_Sensors_SWI2C
@@ -76,3 +80,4 @@ The software and other files in this repository are released under what is commo
 [11]: http://www.ti.com/lit/ml/swru312b/swru312b.pdf
 [100]: https://choosealicense.com/licenses/mit/
 [101]: ./LICENSE.txt
+[200]: https://github.com/Andy4495/Outdoor-Weather-Sensor
