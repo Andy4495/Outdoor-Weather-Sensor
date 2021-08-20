@@ -176,8 +176,11 @@ void setup() {
 #endif
 
   myTMP007.begin();
+  Serial.println("TMP007 Initialized.");
   myOPT3001.begin();
+  Serial.println("OPT3001 Initialized.");
   myBME280.begin();
+  Serial.println("BME280 Initialized.");
 
 #ifdef BOARD_LED
   // Flash the LED to indicate we started
