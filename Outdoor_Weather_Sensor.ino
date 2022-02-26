@@ -38,6 +38,7 @@
     05/19/20 - A.T. - Sensor interfacing moved to new Weather_Sensors_SWI2C library.
     08/16/20 - A.T. - Re-arrange calls to library to optimize code size.
                       Comment out code that prints out packet data; uncomment if needed for debugging. 
+    02/21/22 - A.T. - Minor updates.
 
 */
 /* -----------------------------------------------------------------
@@ -45,8 +46,7 @@
    Design is specific to MSP430G2553, SENSORS BoosterPack, and
    CC110L BoosterPack.
 
-   With minor modifications (e.g. ADC voltage references, LED
-   name, TLV/calibration memory locations), this could be modified
+   With minor modifications (e.g. BOARD_LED and PUSH2 definitions), this could be modified
    to work with other MSP430 variants.
 
    Configuration:
@@ -163,8 +163,8 @@ void setup() {
   // If PUSH2 pressed during reset, then use CH1. Otherwise, use default (CH4).
   if ( digitalRead(PUSH2) == LOW) txChannel = CHANNEL_1;
 
-  if (txChannel == CHANNEL_1) Serial.print("TX Channel: CHANNEL_1 (");
-  else Serial.println("TX Channel: CHANNEL_4");
+  if (txChannel == CHANNEL_1) Serial.println("TX: CHANNEL_1");
+  else Serial.println("TX: CHANNEL_4");
 
   // CC110L Setup
   txPacket.from = ADDRESS_LOCAL;
@@ -173,14 +173,16 @@ void setup() {
 #ifdef ENABLE_RADIO
   Serial.println(F("Radio Enabled"));
   Radio.begin(ADDRESS_LOCAL, txChannel, POWER_MAX);
+  Serial.print("Tx 'From' address: ");
+  Serial.println(txPacket.from);
 #endif
 
   myTMP007.begin();
-  Serial.println("TMP007 Initialized.");
+  Serial.println("TMP007 Init");
   myOPT3001.begin();
-  Serial.println("OPT3001 Initialized.");
+  Serial.println("OPT3001 Init");
   myBME280.begin();
-  Serial.println("BME280 Initialized.");
+  Serial.println("BME280 Init");
 
 #ifdef BOARD_LED
   // Flash the LED to indicate we started
@@ -251,26 +253,15 @@ void loop() {
   Serial.print("  Batt (mV): ");
   Serial.println(txPacket.weatherdata.Batt_mV);
 
+  // Loop count and millis
+  Serial.print("Loops, millis: ");
+  Serial.print(loopCount);
+  Serial.print(", ");
+  Serial.println(txPacket.weatherdata.Millis);
+
 #ifdef ENABLE_RADIO
   Radio.transmit(ADDRESS_REMOTE, (unsigned char*)&txPacket, sizeof(WeatherData) + 4);
-  Serial.print("Tx 'From' address: ");
-  Serial.println(txPacket.from);
 #endif
-
-/* Uncomment for more debugging data. Note that this info is already printed above. 
-  Serial.println("Pkt Data:");
-  Serial.println(txPacket.weatherdata.BME280_T);
-  Serial.println(txPacket.weatherdata.BME280_P);
-  Serial.println(txPacket.weatherdata.BME280_H);
-  Serial.println(txPacket.weatherdata.TMP007_Ti);
-  Serial.println(txPacket.weatherdata.TMP007_Te);
-  Serial.println(txPacket.weatherdata.LUX);
-  Serial.println(txPacket.weatherdata.MSP_T);
-  Serial.println(txPacket.weatherdata.Batt_mV);
-  Serial.println(txPacket.weatherdata.Loops);
-  Serial.println(txPacket.weatherdata.Millis);
-  Serial.println(F("--"));
-*/
 
   sleepSeconds(sleepTime);
 }
