@@ -5,6 +5,7 @@ name: Arduino Compile Sketches
 on: 
   push:
   workflow_dispatch:
+    inputs:
       message:
         description: Message to display in job summary
         required: false
