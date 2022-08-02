@@ -33,6 +33,6 @@ jobs:
             - source-url: https://github.com/Andy4495/SWI2C.git
             - source-url: https://github.com/Andy4495/Weather_Sensors_SWI2C.git
       - name: Print the job summary
-        if: ${{ inputs.message != null }}
+        if: ${{ inputs.message }}
         run: |
           echo ${{ inputs.message }} >$GITHUB_STEP_SUMMARY
