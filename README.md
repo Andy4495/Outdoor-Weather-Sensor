@@ -83,4 +83,4 @@ The software and other files in this repository are released under what is commo
 [11]: http://www.ti.com/lit/ml/swru312b/swru312b.pdf
 [100]: https://choosealicense.com/licenses/mit/
 [101]: ./LICENSE.txt
-[200]: https://github.com/Andy4495/Outdoor-Weather-Sensor
+[//]: # ([200]: https://github.com/Andy4495/Outdoor-Weather-Sensor)
