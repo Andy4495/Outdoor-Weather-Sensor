@@ -3,7 +3,7 @@
 [![Arduino Compile Sketches](https://github.com/Andy4495/Outdoor-Weather-Sensor/actions/workflows/arduino-compile-sketches.yml/badge.svg)](https://github.com/Andy4495/Outdoor-Weather-Sensor/actions/workflows/arduino-compile-sketches.yml)
 [![Check Markdown Links](https://github.com/Andy4495/Outdoor-Weather-Sensor/actions/workflows/CheckMarkdownLinks.yml/badge.svg)](https://github.com/Andy4495/Outdoor-Weather-Sensor/actions/workflows/CheckMarkdownLinks.yml)
 
-This project is a battery-powered wireless outdoor weather sensor. It is designed to run on an [MSP-EXP430G2 LaunchPad][9], [430BOOST-CC110L BoosterPack][11], and [BOOSTXL-SENSORS BoosterPack][10].
+This project is a battery-powered wireless outdoor weather sensor. It is designed to run on an [MSP-EXP430G2 LaunchPad][9] with [430BOOST-CC110L][11] and [BOOSTXL-SENSORS][10] BoosterPacks.
 
 Data from the TMP007, BME280, and OPT3001 sensors are periodically sent to a wireless [receiver hub][2] using the CC110L BoosterPack.
 
@@ -79,7 +79,7 @@ The software and other files in this repository are released under what is commo
 [7]: https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf
 [8]: https://github.com/rei-vilo/SensorsWeather_Library
 [9]: https://www.ti.com/tool/MSP-EXP430G2ET
-[10]: https://www.ti.com/tool/BOOSTXL-SENSORS
+[10]: https://www.ti.com/lit/ug/slau666b/slau666b.pdf
 [11]: http://www.ti.com/lit/ml/swru312b/swru312b.pdf
 [100]: https://choosealicense.com/licenses/mit/
 [101]: ./LICENSE.txt
