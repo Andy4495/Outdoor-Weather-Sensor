@@ -1,7 +1,7 @@
 # Battery Powered Outdoor Weather Sensor
 
 [![Arduino Compile Sketches](https://github.com/Andy4495/Outdoor-Weather-Sensor/actions/workflows/arduino-compile-sketches.yml/badge.svg)](https://github.com/Andy4495/Outdoor-Weather-Sensor/actions/workflows/arduino-compile-sketches.yml)
-[![Check Markdown Links](https://github.com/Andy4495/Outdoor-Weather-Sensor/actions/workflows/CheckMarkdownLinks.yml/badge.svg)](https://github.com/Andy4495/Outdoor-Weather-Sensor/actions/workflows/CheckMarkdownLinks.yml)
+[![Check Markdown Links](https://github.com/Andy4495/Outdoor-Weather-Sensor/actions/workflows/check-links.yml/badge.svg)](https://github.com/Andy4495/Outdoor-Weather-Sensor/actions/workflows/check-links.yml)
 
 This project is a battery-powered wireless outdoor weather sensor. It is designed to run on an [MSP-EXP430G2 LaunchPad][9] with [430BOOST-CC110L][11] and [BOOSTXL-SENSORS][10] BoosterPacks.
 
