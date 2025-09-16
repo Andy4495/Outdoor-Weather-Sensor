@@ -96,8 +96,9 @@
 const unsigned long sleepTime = 55;       // Seconds, not ms
 // ************************************************ //
 
-#include "Weather_Sensors_SWI2C.h"
-#include "MspTandV.h"
+#include "Weather_Sensors_SWI2C.h"    // https://github.com/Andy4495/Weather_Sensors_SWI2C
+                                      // https://github.com/Andy4495/SWI2C
+#include "MspTandV.h"                 // https://github.com/Andy4495/MspTandV
 
 #include <SPI.h>
 #include <AIR430BoostFCC.h>
